@@ -1,525 +1,579 @@
-# 🛡️ Fine-Grained User Permission Management System
+# Fine-Grained User Permission Management System
 
-A full-stack, enterprise-ready role and permission management system built with **Django REST Framework**, **PostgreSQL**, and **React (Vite)**.
+A full-stack application for managing employee records and assigning
+fine-grained permissions to users. The project uses Django REST
+Framework, PostgreSQL, JWT authentication, and React (Vite).
 
-Unlike rigid role-based access control (RBAC), this system implements **fine-grained capability-based authorization**, where individual operational functions (such as `CREATE_EMPLOYEE`, `ASSIGN_PERMISSION`) are decoupled and granted directly to users. Both backend API endpoints and frontend UI controls synchronize dynamically to enforce these permissions.
+Authorization is based on individual function permissions assigned
+directly to users. The backend enforces permissions on every protected
+API request, while the React frontend uses the same permission codes to
+control which features are displayed.
 
----
+## Table of Contents
 
-## 📑 Table of Contents
-- [Key Features](#-key-features)
-- [System Architecture](#-system-architecture)
-- [Tech Stack](#-tech-stack)
-- [Project Directory Structure](#-project-directory-structure)
-- [Core Fine-Grained Permissions](#-core-fine-grained-permissions)
-- [Getting Started](#-getting-started)
-  - [Prerequisites](#prerequisites)
-  - [1. Database Configuration](#1-database-configuration)
-  - [2. Backend Setup](#2-backend-setup)
-  - [3. Frontend Setup](#3-frontend-setup)
-- [Running Automated Tests](#-running-automated-tests)
-- [Default Development Accounts](#-default-development-accounts)
-- [API Reference](#-api-reference)
-  - [Authentication](#authentication)
-  - [Users & Permission Assignment](#users--permission-assignment)
-  - [Employee Management](#employee-management)
-- [Frontend Architecture & UI Gates](#-frontend-architecture--ui-gates)
-- [Django Admin Portal](#-django-admin-portal)
-- [Troubleshooting & FAQs](#-troubleshooting--faqs)
+-   [Features](#features)
+-   [Technology Stack](#technology-stack)
+-   [Architecture](#architecture)
+-   [Project Structure](#project-structure)
+-   [Permission Functions](#permission-functions)
+-   [Getting Started](#getting-started)
+    -   [Prerequisites](#prerequisites)
+    -   [1. Configure PostgreSQL](#1-configure-postgresql)
+    -   [2. Configure the Backend](#2-configure-the-backend)
+    -   [3. Configure the Frontend](#3-configure-the-frontend)
+-   [User and Permission Setup](#user-and-permission-setup)
+-   [Running Automated Tests](#running-automated-tests)
+-   [API Reference](#api-reference)
+    -   [Authentication](#authentication)
+    -   [User and Permission
+        Management](#user-and-permission-management)
+    -   [Employee Management](#employee-management)
+-   [Frontend Permission Handling](#frontend-permission-handling)
+-   [Django Admin](#django-admin)
+-   [HTTP Status Codes](#http-status-codes)
+-   [Troubleshooting](#troubleshooting)
 
----
+## Features
 
-## ✨ Key Features
+-   Email-and-password authentication using JSON Web Tokens (JWT).
+-   Direct Many-to-Many relationship between users and function
+    permissions.
+-   Six predefined permission functions.
+-   Permission assignment, replacement, and revocation.
+-   Employee creation, viewing, updating, and deletion.
+-   Paginated employee listing.
+-   A self-profile endpoint for the authenticated user's linked employee
+    record.
+-   Reusable backend permission classes for dynamic authorization.
+-   React UI controls and navigation that respond to the signed-in
+    user's permissions.
+-   Django Admin support for creating users and assigning permissions.
+-   Automated backend tests for authentication, permissions, and
+    employee functionality.
 
-- **Decoupled Fine-Grained Permissions**: Granular action capabilities instead of hardcoded roles or monolithic admin flags.
-- **Dynamic Frontend Gating**: Reusable `<PermissionGate>` and `hasPermission()` hooks show/hide navigation tabs, buttons, modals, and actions in real time.
-- **Strict Backend Verification**: Custom DRF permission classes (`HasRequiredFunction`, `HasAssignPermission`) validate user permissions on every request directly against the database.
-- **JWT Authentication**: Secure token-based access with SimpleJWT (`access` and `refresh` tokens, automatic authorization headers).
-- **Interactive Permission Matrix UI**: Users with `ASSIGN_PERMISSION` can view all system users and grant or revoke specific capabilities with instant updates.
-- **Full Employee CRUD Management**: Complete employee lifecycle management with individual permissions controlling creation, viewing, updating, and deletion.
-- **Django Admin Customization**: Rich administrative management interface featuring horizontal filter pickers for permission assignment.
-- **100% Test Coverage**: Complete automated test suite covering authentication, fine-grained access control, and employee CRUD operations (55 tests passing).
+## Technology Stack
 
----
+  Layer             Technology              Purpose
+  ----------------- ----------------------- -------------------------------------------
+  Backend           Python, Django          Application logic and configuration
+  API               Django REST Framework   REST API endpoints and validation
+  Authentication    SimpleJWT               Access and refresh tokens
+  Database          PostgreSQL              Persistent application data
+  Frontend          React, Vite             User interface
+  HTTP client       Axios                   Frontend API requests
+  API testing       Postman                 Manual endpoint and authorization testing
+  Version control   Git and GitHub          Source code management
 
-## 🏛️ System Architecture
+## Architecture
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        React Frontend (Vite)                           │
-│                                                                        │
-│   ┌────────────────────┐   ┌───────────────────┐   ┌───────────────┐   │
-│   │    AuthContext     │──>│  PermissionGate   │──>│  Dynamic UI   │   │
-│   │ (JWT & Perm State) │   │  (hasPermission)  │   │ Tabs & Actions│   │
-│   └────────────────────┘   └───────────────────┘   └───────────────┘   │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ HTTP / Bearer JWT
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                    Django REST Framework (Backend)                     │
-│                                                                        │
-│   ┌────────────────────┐   ┌───────────────────┐   ┌───────────────┐   │
-│   │   JWT Auth Guard   │──>│HasRequiredFunction│──>│ API Views &   │   │
-│   │  (accounts.models) │   │  Permission Class │   │ Serializers   │   │
-│   └────────────────────┘   └───────────────────┘   └───────────────┘   │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ SQL
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                          PostgreSQL Database                           │
-│                                                                        │
-│      [ users ] <──────( users_functions )──────> [ functions ]        │
-│          ▲                                                             │
-│          │ (OneToOne)                                                  │
-│          ▼                                                             │
-│     [ employees ]                                                      │
-└────────────────────────────────────────────────────────────────────────┘
+``` text
+React Frontend
+  ├── Authentication context and JWT handling
+  ├── Protected routes
+  └── Permission-aware navigation and controls
+                |
+                | HTTP requests with Bearer access token
+                v
+Django REST Framework
+  ├── Authentication
+  ├── Reusable permission checks
+  ├── User and permission APIs
+  └── Employee APIs
+                |
+                v
+PostgreSQL
+  ├── Users
+  ├── Functions
+  ├── User-function Many-to-Many relationship
+  └── Employee records
 ```
 
----
+## Project Structure
 
-## 🛠️ Tech Stack
-
-| Layer | Technologies |
-|---|---|
-| **Backend** | Python, Django 6.1, Django REST Framework (DRF), SimpleJWT, `django-cors-headers` |
-| **Frontend** | React 19, Vite, Axios, Pure CSS (Modern Dark/Glassmorphic UI) |
-| **Database** | PostgreSQL |
-| **Testing** | Django Test Framework (55 Unit & Integration tests) |
-
----
-
-## 📁 Project Directory Structure
-
-```text
+``` text
 User-Permission-Management-System/
 ├── backend/
 │   ├── manage.py
 │   ├── requirements.txt
-│   ├── .env.example              # Sample environment configuration
-│   ├── .env                      # Active environment settings (created during setup)
-│   ├── config/                   # Root Django configuration
-│   │   ├── settings.py           # Installed apps, CORS, JWT, DB settings
-│   │   ├── urls.py               # Root API routing and Django Admin branding
-│   │   ├── wsgi.py
-│   │   └── asgi.py
-│   ├── accounts/                 # User authentication & custom user model
-│   │   ├── models.py             # Custom User model (email primary identifier)
-│   │   ├── admin.py              # Extended UserAdmin with permission assignment
-│   │   ├── serializers.py        # Login & User serializers
-│   │   ├── views.py              # LoginView, CurrentUserView (/auth/me/)
-│   │   └── management/commands/
-│   │       └── seed_test_users.py # Optional command to seed dev accounts
-│   ├── permissions/              # Fine-grained capability framework
-│   │   ├── models.py             # Function entity definition
-│   │   ├── admin.py              # Read-only Function admin with assigned user counts
-│   │   ├── permissions.py        # HasRequiredFunction & HasAssignPermission
-│   │   ├── serializers.py        # FunctionSerializer, PermissionCodesSerializer
-│   │   ├── views.py              # UsersListView, UserPermissionsView, AllFunctionsView
-│   │   └── management/commands/
-│   │       └── seed_functions.py # Idempotent seeder for the 6 core capabilities
-│   └── employees/                # Employee management module
-│       ├── models.py             # Employee model linked to User
-│       ├── serializers.py        # EmployeeSerializer
-│       ├── views.py              # EmployeeListCreateView, DetailView, EmployeeMeView
-│       └── tests.py              # Comprehensive test suites
-│
+│   ├── .env.example
+│   ├── config/
+│   ├── accounts/
+│   ├── permissions/
+│   └── employees/
 ├── frontend/
-│   ├── index.html
 │   ├── package.json
 │   ├── vite.config.js
 │   └── src/
-│       ├── main.jsx              # React DOM root entry
-│       ├── App.jsx               # Route definitions and AuthProvider wrapper
-│       ├── index.css             # Base resets and typography
-│       ├── App.css               # Core styling tokens, responsive layout, glass UI
-│       ├── api/
-│       │   └── client.js         # Axios instance with automated JWT bearer interceptor
-│       ├── context/
-│       │   └── AuthContext.jsx   # Auth provider, token storage, and hasPermission helper
-│       ├── components/
-│       │   ├── PermissionGate.jsx# Conditional renderer based on permission codes
-│       │   └── ProtectedRoute.jsx# Auth wrapper for protected views
-│       └── pages/
-│           ├── LoginPage.jsx     # Clean login interface with credential helpers
-│           └── HomePage.jsx      # Unified dashboard (Overview, Employees, Permissions, Profile)
-│
 └── README.md
 ```
 
----
+The backend apps are organized by responsibility:
 
-## 🔑 Core Fine-Grained Permissions
+-   `accounts`: custom user model, login, and current-user endpoints.
+-   `permissions`: function definitions, permission checks, and
+    permission assignment APIs.
+-   `employees`: employee records and employee management APIs.
+-   `config`: Django settings and root URL configuration.
 
-The system defines 6 core system functions:
+## Permission Functions
 
-| Function Code | Name | Description | UI / API Effects |
-|---|---|---|---|
-| `VIEW_EMPLOYEE` | View Employee | Allows browsing employee list and view employee details | Shows **Employees** tab in dashboard; grants access to `GET /api/employees/` and `GET /api/employees/{id}/` |
-| `CREATE_EMPLOYEE` | Create Employee | Allows adding and onboarding new employee records | Displays **+ Add Employee** button and modal; grants access to `POST /api/employees/` |
-| `EDIT_EMPLOYEE` | Edit Employee | Allows modifying existing employee records | Displays **Edit** action buttons on table rows; grants access to `PUT / PATCH /api/employees/{id}/` |
-| `DELETE_EMPLOYEE` | Delete Employee | Allows removing employee records from the system | Displays **Delete** buttons and confirmation prompt; grants access to `DELETE /api/employees/{id}/` |
-| `VIEW_SELF` | View Self | Allows user to inspect their own linked employee profile | Shows **My Profile** button/tab; grants access to `GET /api/employees/me/` |
-| `ASSIGN_PERMISSION` | Assign Permission | Allows viewing all system users and editing their assigned permissions | Shows **Permission Management** tab; grants access to `GET /api/users/`, `PUT /api/users/{id}/permissions/`, and `/api/permissions/functions/` |
+The system seeds the following function definitions:
 
----
+  ----------------------------------------------------------------------------------
+  Function code           Purpose                 Related API action
+  ----------------------- ----------------------- ----------------------------------
+  `CREATE_EMPLOYEE`       Create employee records `POST /api/employees/`
 
-## 🚀 Getting Started
+  `EDIT_EMPLOYEE`         Update employee records `PUT/PATCH /api/employees/{id}/`
+
+  `DELETE_EMPLOYEE`       Delete employee records `DELETE /api/employees/{id}/`
+
+  `VIEW_EMPLOYEE`         View the employee       `GET /api/employees/`,
+                          directory and           `GET /api/employees/{id}/`
+                          individual records      
+
+  `VIEW_SELF`             View the signed-in      `GET /api/employees/me/`
+                          user's linked employee  
+                          profile                 
+
+  `ASSIGN_PERMISSION`     View users and assign,  User and function permission APIs
+                          replace, or revoke      
+                          their permissions       
+  ----------------------------------------------------------------------------------
+
+Permissions are assigned directly to users through a Many-to-Many
+relationship. The application does not require a fixed set of roles to
+determine access. Each user's allowed actions depend on the function
+permissions assigned to that account.
+
+## Getting Started
 
 ### Prerequisites
 
-Ensure you have the following installed on your machine:
-- **Python**: Version 3.10 or higher
-- **Node.js**: Version 18.x or higher (with `npm`)
-- **PostgreSQL**: Running locally or accessible via network
+Install the following:
 
----
+-   Python 3.10 or later, compatible with the dependencies in
+    `backend/requirements.txt`
+-   Node.js and npm
+-   PostgreSQL
+-   Git
 
-### 1. Database Configuration
+### 1. Configure PostgreSQL
 
-Create a PostgreSQL database for the application:
+Create a database in PostgreSQL. For example:
 
-```sql
+``` sql
 CREATE DATABASE fine_grained_permissions;
 ```
 
----
+Use the database name configured in your environment file. If your local
+database has a different name, update `DB_NAME` accordingly.
 
-### 2. Backend Setup
+### 2. Configure the Backend
 
-#### Step A: Navigate to backend folder
-```bash
+Open PowerShell at the repository root and run:
+
+``` powershell
 cd backend
-```
-
-#### Step B: Activate the Virtual Environment
-- **Windows (PowerShell)**:
-  ```powershell
-  .\venv\Scripts\Activate.ps1
-  ```
-  *(If you need to create a fresh environment: `python -m venv venv`)*
-- **Linux / macOS**:
-  ```bash
-  source venv/bin/activate
-  ```
-
-#### Step C: Install Python Dependencies
-```bash
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-#### Step D: Configure Environment Variables
-Copy `.env.example` to `.env`:
-- **Windows (PowerShell)**:
-  ```powershell
-  Copy-Item .env.example .env
-  ```
-- **Linux / macOS**:
-  ```bash
-  cp .env.example .env
-  ```
+Create the local environment file from the example:
 
-Open `.env` and configure your PostgreSQL credentials:
-```env
-DJANGO_SECRET_KEY=your-secure-secret-key
+``` powershell
+Copy-Item .env.example .env
+```
+
+Edit `backend/.env` and set the values required by your project.
+Example:
+
+``` env
+DJANGO_SECRET_KEY=replace-with-a-secure-local-secret
 DJANGO_DEBUG=True
 
-# Database Configuration
 DB_NAME=fine_grained_permissions
 DB_USER=postgres
-DB_PASSWORD=your_postgres_password
+DB_PASSWORD=postgresql
 DB_HOST=localhost
 DB_PORT=5432
 ```
 
-#### Step E: Apply Database Migrations
-```bash
-python manage.py migrate
-```
+Use the exact environment variable names expected by
+`backend/config/settings.py`. Do not commit the real `.env` file or
+share database passwords, secret keys, or tokens.
 
-#### Step F: Seed Core Permissions
-Run the built-in idempotent management command to populate the 6 core system functions:
-```bash
+Apply migrations and seed the six permission functions:
+
+``` powershell
+python manage.py migrate
 python manage.py seed_functions
 ```
 
-#### Step G: (Optional) Seed Development Test Accounts
-To quickly populate test accounts with different permission tiers:
-```bash
-python manage.py seed_test_users
-```
+The `seed_functions` command should be safe to run more than once and
+should not create duplicate function definitions.
 
-#### Step H: Create a Superuser (for Django Admin)
-```bash
+Create a Django superuser for the administration portal:
+
+``` powershell
 python manage.py createsuperuser
 ```
 
-#### Step I: Start the Backend Server
-```bash
+Start the backend:
+
+``` powershell
 python manage.py runserver
 ```
-The backend API is now running at **`http://127.0.0.1:8000/`**.
 
----
+The local backend should be available at `http://127.0.0.1:8000/`.
 
-### 3. Frontend Setup
+Keep this terminal open while using the application.
 
-#### Step A: Navigate to frontend folder (in a new terminal)
-```bash
+### 3. Configure the Frontend
+
+Open a second terminal at the repository root:
+
+``` powershell
 cd frontend
-```
-
-#### Step B: Install NPM Dependencies
-```bash
 npm install
-```
-
-#### Step C: Start Vite Development Server
-```bash
 npm run dev
 ```
-The React frontend will be accessible at **`http://localhost:5173/`** (or the port specified by Vite in your console).
 
----
+Open the local address printed by Vite, usually
+`http://localhost:5173/`.
 
-## 🧪 Running Automated Tests
+The backend and PostgreSQL service must be running for API-driven
+features to work.
 
-The application includes an extensive test suite verifying:
-- Model integrity and custom user model validation
-- Dynamic DRF permission class behavior (`HasRequiredFunction`)
-- JWT authentication and token refresh flows
-- Permission assignment endpoints (add, replace, remove)
-- Employee CRUD operations and permission gating
+## User and Permission Setup
 
-To execute all 55 tests:
-```powershell
+The normal setup workflow is:
+
+1.  Start the backend and open the Django Admin portal at
+    `http://127.0.0.1:8000/admin/`.
+2.  Sign in with the Django superuser account created during setup.
+3.  Create user accounts through Django Admin.
+4.  Assign the required function permissions to each user through the
+    user administration interface.
+5.  Create and link employee records as needed.
+6.  Sign in to the React application using an ordinary user's own email
+    and password.
+7.  Verify that the UI and API access match that user's assigned
+    permissions.
+
+The Django superuser used to administer Django Admin is separate from
+the application's `ASSIGN_PERMISSION` capability. Application API
+authorization must rely on the assigned function permissions, not on a
+user's email, fixed user ID, `is_staff`, or `is_superuser` status.
+
+Development test accounts are not required for normal application usage.
+If a local development seeding command for test users exists in the
+codebase, use it only when you intentionally need those test accounts.
+Do not rely on such accounts for production or real-user workflows.
+
+## Running Automated Tests
+
+From the repository root, run:
+
+``` powershell
 cd backend
 .\venv\Scripts\python.exe manage.py test
 ```
-All tests should pass:
-```text
-Ran 55 tests in ~75s
-OK
+
+You can also run Django's configuration check:
+
+``` powershell
+python manage.py check
 ```
 
----
+The tests should cover relevant behavior such as:
 
-## 👥 Default Development Accounts
+-   Login success and invalid credentials.
+-   Protected endpoints and unauthenticated requests.
+-   Function definitions and user-function assignments.
+-   Permission assignment restrictions.
+-   Employee creation, viewing, updating, and deletion.
+-   HTTP 401 responses for unauthenticated requests.
+-   HTTP 403 responses for authenticated users who lack the required
+    permission.
 
-If you ran `python manage.py seed_test_users`, you can log in with these pre-configured test users:
+Use the actual test output when reporting the test count or results. A
+passing test suite does not by itself establish a particular percentage
+of code coverage.
 
-| Email | Password | Assigned Permissions | Purpose |
-|---|---|---|---|
-| `user2@example.com` | `TestUser2@123` | **All 6 permissions** (`VIEW_EMPLOYEE`, `CREATE_EMPLOYEE`, `EDIT_EMPLOYEE`, `DELETE_EMPLOYEE`, `VIEW_SELF`, `ASSIGN_PERMISSION`) | Full Administrator / Manager access to test all features and permission toggling. |
-| `user1@example.com` | `TestUser1@123` | `VIEW_EMPLOYEE`, `VIEW_SELF` | Standard employee view. Can browse the directory and view own profile, but cannot edit, delete, or manage permissions. |
-| `user3@example.com` | `TestUser3@123` | *(None - 0 permissions)* | Restricted user. Can log in and view Overview, but has no access to employee data or management tools. |
+## API Reference
 
----
+Protected endpoints require a valid access token in the request header:
 
-## 📡 API Reference
-
-All protected endpoints require an `Authorization` header:
-```text
-Authorization: Bearer <your_access_token>
+``` http
+Authorization: Bearer <access_token>
 ```
 
 ### Authentication
 
-#### 1. Log In & Receive JWT Tokens
-- **Endpoint**: `POST /api/login/`
-- **Request Body**:
-  ```json
-  {
-    "email": "user2@example.com",
-    "password": "TestUser2@123"
-  }
-  ```
-- **Response** (`200 OK`):
-  ```json
-  {
-    "access": "eyJhbGciOiJIUzI1Ni...",
-    "refresh": "eyJhbGciOiJIUzI1Ni...",
-    "user": {
-      "id": 2,
-      "email": "user2@example.com",
-      "first_name": "User",
-      "last_name": "Two",
-      "permissions": [
-        "ASSIGN_PERMISSION",
-        "CREATE_EMPLOYEE",
-        "DELETE_EMPLOYEE",
-        "EDIT_EMPLOYEE",
-        "VIEW_EMPLOYEE",
-        "VIEW_SELF"
-      ]
-    }
-  }
-  ```
+#### 1. Login
 
-#### 2. Get Current Authenticated User Details
-- **Endpoint**: `GET /api/auth/me/`
-- **Requires**: Any valid JWT token
+**Endpoint:** `POST /api/login/`
+
+Request body:
+
+``` json
+{
+  "email": "your-user@example.com",
+  "password": "your-password"
+}
+```
+
+On success, the API returns access and refresh tokens along with safe
+user information and assigned permission codes. Use the credentials of a
+user that has actually been created in your database.
+
+-   Valid credentials: `200 OK`
+-   Invalid credentials: `401 Unauthorized`
+
+#### 2. Get Current User
+
+**Endpoint:** `GET /api/auth/me/`
+
+Requires a valid access token. Returns information about the
+authenticated user, including assigned permission codes where provided
+by the API.
 
 #### 3. Refresh Access Token
-- **Endpoint**: `POST /api/token/refresh/`
-- **Request Body**: `{"refresh": "<refresh_token>"}`
 
----
+**Endpoint:** `POST /api/token/refresh/`
 
-### Users & Permission Assignment
-*(All endpoints below require the `ASSIGN_PERMISSION` function)*
+Request body:
 
-#### 1. List All Users & Current Permissions
-- **Endpoint**: `GET /api/users/`
-- **Response** (`200 OK`):
-  ```json
-  [
-    {
-      "id": 1,
-      "email": "user1@example.com",
-      "first_name": "User",
-      "last_name": "One",
-      "is_active": true,
-      "permissions": ["VIEW_EMPLOYEE", "VIEW_SELF"]
-    }
-  ]
-  ```
+``` json
+{
+  "refresh": "<refresh_token>"
+}
+```
 
-#### 2. List All Available Function Definitions
-- **Endpoint**: `GET /api/permissions/functions/`
-- **Response** (`200 OK`): Array of `{ "id": 1, "name": "...", "code": "...", "description": "..." }`
+Send a valid refresh token to obtain a new access token. Do not share or
+commit real tokens.
 
-#### 3. View Permissions for Specific User
-- **Endpoint**: `GET /api/users/{user_id}/permissions/`
+### User and Permission Management
 
-#### 4. Overwrite / Replace User Permissions (Full Update)
-- **Endpoint**: `PUT /api/users/{user_id}/permissions/`
-- **Request Body**:
-  ```json
-  {
-    "function_codes": ["VIEW_EMPLOYEE", "CREATE_EMPLOYEE"]
-  }
-  ```
+These endpoints require authentication and the `ASSIGN_PERMISSION`
+function.
 
-#### 5. Add Specific Permissions to User
-- **Endpoint**: `POST /api/users/{user_id}/permissions/`
-- **Request Body**:
-  ```json
-  {
-    "function_codes": ["DELETE_EMPLOYEE"]
-  }
-  ```
+  -------------------------------------------------------------------------------------
+  Method                  Endpoint                              Purpose
+  ----------------------- ------------------------------------- -----------------------
+  `GET`                   `/api/users/`                         List users
 
-#### 6. Revoke Specific Permissions from User
-- **Endpoint**: `DELETE /api/users/{user_id}/permissions/`
-- **Request Body**:
-  ```json
-  {
-    "function_codes": ["DELETE_EMPLOYEE"]
-  }
-  ```
+  `GET`                   `/api/permissions/functions/`         List available function
+                                                                definitions
 
----
+  `GET`                   `/api/users/{user_id}/permissions/`   Retrieve a user's
+                                                                permissions
+
+  `POST`                  `/api/users/{user_id}/permissions/`   Add specified
+                                                                permissions
+
+  `PUT`                   `/api/users/{user_id}/permissions/`   Replace the user's
+                                                                permission set
+
+  `DELETE`                `/api/users/{user_id}/permissions/`   Remove specified
+                                                                permissions
+  -------------------------------------------------------------------------------------
+
+Use the numeric ID of a user that exists in your database. Do not assume
+that user IDs are fixed across databases.
+
+Example request body for adding permissions:
+
+``` json
+{
+  "function_codes": ["VIEW_EMPLOYEE", "CREATE_EMPLOYEE"]
+}
+```
+
+Example request body for revoking permissions:
+
+``` json
+{
+  "function_codes": ["CREATE_EMPLOYEE"]
+}
+```
+
+Example request body for replacing the complete permission set:
+
+``` json
+{
+  "function_codes": ["VIEW_SELF"]
+}
+```
+
+The exact behavior of each method should match the implemented API.
+Invalid function codes should be rejected rather than silently creating
+new function definitions.
 
 ### Employee Management
 
-| Method | Endpoint | Required Permission | Description |
-|---|---|---|---|
-| `GET` | `/api/employees/` | `VIEW_EMPLOYEE` | List all employees |
-| `POST` | `/api/employees/` | `CREATE_EMPLOYEE` | Create a new employee |
-| `GET` | `/api/employees/me/` | `VIEW_SELF` | View current logged-in user's employee profile |
-| `GET` | `/api/employees/{id}/` | `VIEW_EMPLOYEE` | Retrieve single employee record |
-| `PUT` / `PATCH` | `/api/employees/{id}/` | `EDIT_EMPLOYEE` | Update employee information |
-| `DELETE` | `/api/employees/{id}/` | `DELETE_EMPLOYEE` | Delete employee record |
+  --------------------------------------------------------------------------------
+  Method            Endpoint                 Required function   Purpose
+  ----------------- ------------------------ ------------------- -----------------
+  `GET`             `/api/employees/`        `VIEW_EMPLOYEE`     List employees
+                                                                 (paginated)
 
-#### Sample Create Employee Request:
-```json
+  `POST`            `/api/employees/`        `CREATE_EMPLOYEE`   Create an
+                                                                 employee
+
+  `GET`             `/api/employees/me/`     `VIEW_SELF`         View the current
+                                                                 user's linked
+                                                                 employee record
+
+  `GET`             `/api/employees/{id}/`   `VIEW_EMPLOYEE`     Retrieve an
+                                                                 employee
+
+  `PUT` / `PATCH`   `/api/employees/{id}/`   `EDIT_EMPLOYEE`     Update an
+                                                                 employee
+
+  `DELETE`          `/api/employees/{id}/`   `DELETE_EMPLOYEE`   Delete an
+                                                                 employee
+  --------------------------------------------------------------------------------
+
+Example create request:
+
+``` http
 POST /api/employees/
+Content-Type: application/json
+Authorization: Bearer <access_token>
+```
+
+``` json
 {
   "employee_id": "EMP-101",
   "first_name": "Jane",
   "last_name": "Doe",
-  "department": "Engineering",
-  "job_title": "Full Stack Engineer",
   "email": "jane.doe@example.com",
+  "department": "Engineering",
+  "job_title": "Software Developer",
   "phone": "+1 555-0199"
 }
 ```
 
----
+The employee serializer may accept additional fields, or apply defaults,
+according to the current implementation. Use the API response to
+identify validation errors.
 
-## 💻 Frontend Architecture & UI Gates
+The `/api/employees/me/` endpoint returns the employee record linked to
+the authenticated user. A user must have an associated employee record
+to retrieve that profile successfully.
 
-### 1. The `hasPermission()` Helper
-Exposed by `AuthContext`, allows case-insensitive permission checks in any component:
-```jsx
-import { useAuth } from '../context/AuthContext';
+## Frontend Permission Handling
 
-function MyComponent() {
-  const { hasPermission } = useAuth();
+The frontend uses authentication context to keep track of the signed-in
+user and assigned permission codes. A helper such as `hasPermission()`
+and the reusable `PermissionGate` component can control visibility of UI
+elements.
 
-  if (hasPermission('CREATE_EMPLOYEE')) {
-    return <button>Create</button>;
-  }
-  return null;
-}
-```
+For example:
 
-### 2. The `<PermissionGate>` Component
-Declarative UI gating:
-```jsx
-import PermissionGate from '../components/PermissionGate';
-
+``` jsx
 <PermissionGate permission="CREATE_EMPLOYEE">
-  <button onClick={openAddModal}>+ Add Employee</button>
+  <button onClick={openAddModal}>Add Employee</button>
 </PermissionGate>
 ```
 
-### 3. Dashboard Tabs Breakdown
-1. **Overview**: Displays current user summary, permissions pills, and recent activity log.
-2. **Employees** *(Requires `VIEW_EMPLOYEE`)*: Searchable employee table with conditional Add, Edit, and Delete buttons.
-3. **Permission Management** *(Requires `ASSIGN_PERMISSION`)*: User picker and live interactive checkbox matrix for updating permissions.
-4. **My Profile** *(Requires `VIEW_SELF`)*: Displays personal linked employee record.
+The frontend controls presentation only. It is not a security boundary:
+the backend must independently check the required permission for every
+protected operation.
 
----
+## Django Admin
 
-## 🛡️ Django Admin Portal
+Open `http://127.0.0.1:8000/admin/` and sign in with the Django
+superuser account.
 
-For administrative oversight and superuser configuration:
+Use Django Admin to:
 
-1. Open your browser and go to: **`http://127.0.0.1:8000/admin/`**
-2. Sign in with your superuser account.
-3. **Users Management** (`/admin/accounts/user/`):
-   - Add new users with password hashing.
-   - Use the **Fine-Grained Permissions** horizontal filter box to assign or revoke permissions.
-4. **Functions Registry** (`/admin/permissions/function/`):
-   - View all registered permissions.
-   - Inspect which users currently hold each permission.
-   - Direct addition/deletion is protected to maintain system integrity.
-5. **Employees Management** (`/admin/employees/employee/`):
-   - Search, filter by department or active status, and link employee profiles to user accounts.
+-   Create and manage user accounts.
+-   Assign function permissions to users.
+-   Inspect the registered function definitions.
+-   Manage employee records, where configured in the admin interface.
 
----
+A Django superuser's administrative privileges do not automatically
+grant the application-specific `ASSIGN_PERMISSION` function. Assign that
+function explicitly when the account needs to manage permissions through
+the application APIs.
 
-## ❓ Troubleshooting & FAQs
+## HTTP Status Codes
 
-### Database Connection Error
-**Issue**: `django.db.utils.OperationalError: could not connect to server`
-- **Solution**: Verify PostgreSQL is running locally (`pg_isready` or check Windows Services). Ensure the database name, user, password, and port in `backend/.env` match your PostgreSQL server.
+  -----------------------------------------------------------------------
+  Status                  Meaning                 Example
+  ----------------------- ----------------------- -----------------------
+  `200 OK`                Request succeeded       Login, listing, or
+                                                  permission operation
+                                                  succeeded
 
-### CORS Errors on Frontend
-**Issue**: Frontend Axios requests blocked by CORS policy.
-- **Solution**: Ensure the backend server is running on `127.0.0.1:8000`. `backend/config/settings.py` already includes `http://localhost:5173` and `http://127.0.0.1:5173` in `CORS_ALLOWED_ORIGINS`.
+  `201 Created`           Resource created        Employee created
+                                                  successfully
 
-### Missing Permissions After Login
-**Issue**: A user logged in but cannot see the Employees or Permission tab.
-- **Solution**: Verify that the required functions (`VIEW_EMPLOYEE`, `ASSIGN_PERMISSION`, etc.) are assigned to that user in Django Admin or via the Permission Management tab by an administrator (`user2@example.com`).
+  `400 Bad Request`       Invalid input           Required field missing
+                                                  or unknown function
+                                                  code
 
-### 403 Forbidden on API Requests
-**Issue**: API requests return `403 Forbidden: You do not have permission to perform this action`.
-- **Solution**: The backend checks database records for each specific request. Check that the logged-in user possesses the required capability code listed in the [API Reference](#-api-reference).
+  `401 Unauthorized`      Authentication missing  No valid access token
+                          or invalid              or invalid login
+                                                  credentials
 
----
+  `403 Forbidden`         Authenticated but lacks User attempts an
+                          required permission     operation without its
+                                                  function permission
 
-## 📄 License
-This project is open-source and available under the standard development license for internal and educational use.
+  `404 Not Found`         Resource does not exist Requested employee or
+                                                  user ID is not found
+  -----------------------------------------------------------------------
+
+The actual status for a particular operation depends on the endpoint's
+implementation and validation rules.
+
+## Troubleshooting
+
+### Database connection error
+
+-   Confirm that the PostgreSQL service is running.
+-   Check `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT`
+    in `backend/.env`.
+-   Verify that the database exists and that the configured database
+    user can connect to it.
+
+### Frontend API or CORS error
+
+-   Confirm that Django is running at `http://127.0.0.1:8000/`.
+-   Confirm that Vite is running at the address shown in its terminal.
+-   Verify that the frontend origin is included in
+    `CORS_ALLOWED_ORIGINS` in the Django settings.
+
+### A user cannot see a feature
+
+-   Check the user's assigned function permissions in Django Admin.
+-   Confirm that the frontend has loaded the latest user permissions
+    after login.
+-   Check the API response. The backend should return `403 Forbidden`
+    when an authenticated user lacks the required permission.
+
+### Refresh token request fails
+
+-   Use the `refresh` value from a successful login response, not the
+    `access` value.
+-   Send the refresh token as JSON in the request body.
+-   Check that the token has not expired and that the endpoint URL is
+    correct.
+
+## Security Notes
+
+-   Do not commit `backend/.env`, real passwords, secret keys, or JWTs.
+-   Use a strong secret key and `DEBUG=False` for a production
+    deployment.
+-   Use HTTPS in production.
+-   Give each user only the permissions required for their work.
+-   Never rely on frontend button visibility alone to enforce
+    authorization.
+-   Do not use hardcoded email addresses or fixed user IDs to grant
+    access.
+
