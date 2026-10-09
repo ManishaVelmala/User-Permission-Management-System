@@ -1,15 +1,14 @@
-from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
+from accounts.models import User
 from .models import Function
 from .permissions import HasAssignPermission
 from .serializers import FunctionSerializer, PermissionCodesSerializer
 
-User = get_user_model()
 
 ALL_PERMISSION_CODES = [
     'CREATE_EMPLOYEE',

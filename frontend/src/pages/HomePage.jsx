@@ -171,7 +171,7 @@ export default function HomePage() {
         return updated;
       });
     },
-    [user?.email]
+    [user]
   );
 
   // Helper to extract detailed error messages from DRF response
