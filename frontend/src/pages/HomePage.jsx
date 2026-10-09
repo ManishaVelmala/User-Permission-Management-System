@@ -56,6 +56,7 @@ export default function HomePage() {
   const { user, permissions, logout, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [authorizationError, setAuthorizationError] = useState('');
 
   // Employee list & table state
   const [employees, setEmployees] = useState([]);
@@ -181,7 +182,7 @@ export default function HomePage() {
     }
     const { status, data } = err.response;
     if (status === 403) {
-      return data?.detail || 'Permission denied. You do not have the required permission for this action.';
+      return 'Not Authorized';
     }
     if (data?.detail) {
       return data.detail;
@@ -269,10 +270,32 @@ export default function HomePage() {
   }, [pmUsers, pmFunctions]);
 
   const handlePmToggle = (code) => {
+    if (!hasPermission('ASSIGN_PERMISSION')) {
+      setAuthorizationError('Not Authorized');
+      return;
+    }
     setPmChecked((prev) => ({ ...prev, [code]: !prev[code] }));
   };
 
+  const handlePmClear = () => {
+    if (!hasPermission('ASSIGN_PERMISSION')) {
+      setAuthorizationError('Not Authorized');
+      return;
+    }
+    const cleared = {};
+    pmFunctions.forEach((f) => {
+      cleared[f.code] = false;
+    });
+    setPmChecked(cleared);
+    setPmSaveSuccess('');
+    setPmSaveError('');
+  };
+
   const handlePmSave = async () => {
+    if (!hasPermission('ASSIGN_PERMISSION')) {
+      setAuthorizationError('Not Authorized');
+      return;
+    }
     if (!pmSelectedUserId) return;
     setPmSaving(true);
     setPmSaveSuccess('');
@@ -325,12 +348,16 @@ export default function HomePage() {
 
   // Load permission management data when switching to permissions tab
   useEffect(() => {
-    if (activeTab === 'permissions' && hasPermission('ASSIGN_PERMISSION')) {
+    if (activeTab === 'permissions') {
       setPmSelectedUserId(null);
       setPmChecked({});
       setPmSaveSuccess('');
       setPmSaveError('');
-      fetchPmData();
+      if (hasPermission('ASSIGN_PERMISSION')) {
+        fetchPmData();
+      } else {
+        setPmError('Not Authorized');
+      }
     }
   }, [activeTab, hasPermission, fetchPmData]);
 
@@ -365,6 +392,10 @@ export default function HomePage() {
 
   // Modal open handlers
   const handleOpenAddModal = () => {
+    if (!hasPermission('CREATE_EMPLOYEE')) {
+      setAuthorizationError('Not Authorized');
+      return;
+    }
     setModalMode('create');
     setEditingId(null);
     setFormData({ ...initialFormData });
@@ -373,6 +404,10 @@ export default function HomePage() {
   };
 
   const handleOpenEditModal = (emp) => {
+    if (!hasPermission('EDIT_EMPLOYEE')) {
+      setAuthorizationError('Not Authorized');
+      return;
+    }
     setModalMode('edit');
     setEditingId(emp.id);
     setFormData({
@@ -402,6 +437,11 @@ export default function HomePage() {
   // Form submit (Add or Edit)
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    const requiredPermission = modalMode === 'create' ? 'CREATE_EMPLOYEE' : 'EDIT_EMPLOYEE';
+    if (!hasPermission(requiredPermission)) {
+      setFormError('Not Authorized');
+      return;
+    }
     setFormSubmitting(true);
     setFormError('');
     try {
@@ -438,6 +478,10 @@ export default function HomePage() {
 
   // Delete handlers
   const handleOpenDeleteConfirm = (emp) => {
+    if (!hasPermission('DELETE_EMPLOYEE')) {
+      setAuthorizationError('Not Authorized');
+      return;
+    }
     setDeleteConfirm({
       id: emp.id,
       employee_id: emp.employee_id,
@@ -454,6 +498,10 @@ export default function HomePage() {
 
   const handleConfirmDelete = async () => {
     if (!deleteConfirm) return;
+    if (!hasPermission('DELETE_EMPLOYEE')) {
+      setDeleteError('Not Authorized');
+      return;
+    }
     setIsDeleting(true);
     setDeleteError('');
     try {
@@ -479,6 +527,7 @@ export default function HomePage() {
 
   // Close mobile nav when tab clicked
   const handleTabSwitch = (tabName) => {
+    setAuthorizationError('');
     setActiveTab(tabName);
     setMobileNavOpen(false);
   };
@@ -536,44 +585,40 @@ export default function HomePage() {
             <span className="nav-label">Dashboard</span>
           </button>
 
-          {/* VIEW_EMPLOYEE -> Employees */}
-          <PermissionGate permission="VIEW_EMPLOYEE">
-            <button
-              id="nav-employees"
-              className={`sidebar-nav-item ${activeTab === 'employees' ? 'active' : ''}`}
-              onClick={() => handleTabSwitch('employees')}
-            >
-              <span className="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </span>
-              <span className="nav-label">Employees</span>
-              {employees.length > 0 && (
-                <span className="nav-badge">{employees.length}</span>
-              )}
-            </button>
-          </PermissionGate>
+          {/* Employee data remains protected; the tab exposes permitted actions to all users. */}
+          <button
+            id="nav-employees"
+            className={`sidebar-nav-item ${activeTab === 'employees' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('employees')}
+          >
+            <span className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span className="nav-label">Employees</span>
+            {employees.length > 0 && (
+              <span className="nav-badge">{employees.length}</span>
+            )}
+          </button>
 
-          {/* ASSIGN_PERMISSION -> Permission Management */}
-          <PermissionGate permission="ASSIGN_PERMISSION">
-            <button
-              id="nav-permission-management"
-              className={`sidebar-nav-item ${activeTab === 'permissions' ? 'active' : ''}`}
-              onClick={() => handleTabSwitch('permissions')}
-            >
-              <span className="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </span>
-              <span className="nav-label">Permission Management</span>
-            </button>
-          </PermissionGate>
+          {/* Permission assignment data remains protected by the backend. */}
+          <button
+            id="nav-permission-management"
+            className={`sidebar-nav-item ${activeTab === 'permissions' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('permissions')}
+          >
+            <span className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </span>
+            <span className="nav-label">Permission Management</span>
+          </button>
 
           {/* VIEW_SELF -> My Profile */}
           <PermissionGate permission="VIEW_SELF">
@@ -672,6 +717,12 @@ export default function HomePage() {
 
         {/* Main Content View */}
         <main className="app-content-area">
+          {authorizationError && (
+            <div className="alert alert-error" role="alert">
+              <span>{authorizationError}</span>
+            </div>
+          )}
+
           {/* OVERVIEW / DASHBOARD TAB */}
           {activeTab === 'overview' && (
             <div className="tab-container">
@@ -821,7 +872,7 @@ export default function HomePage() {
           )}
 
           {/* EMPLOYEES TAB */}
-          {activeTab === 'employees' && hasPermission('VIEW_EMPLOYEE') && (
+          {activeTab === 'employees' && (
             <div className="tab-container">
               {/* Header */}
               <div className="page-header">
@@ -831,7 +882,7 @@ export default function HomePage() {
                 </div>
 
                 {/* CREATE_EMPLOYEE -> Add Employee */}
-                <PermissionGate permission="CREATE_EMPLOYEE">
+                <PermissionGate permission="CREATE_EMPLOYEE" showWhenUnauthorized onDenied={setAuthorizationError}>
                   <button
                     id="btn-add-employee"
                     className="btn btn-primary"
@@ -864,6 +915,12 @@ export default function HomePage() {
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                   <span>{employeesError}</span>
+                </div>
+              )}
+
+              {!hasPermission('VIEW_EMPLOYEE') && (
+                <div className="alert alert-error" role="alert">
+                  <span>Not Authorized to view employee records.</span>
                 </div>
               )}
 
@@ -933,9 +990,11 @@ export default function HomePage() {
                         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                       </svg>
                     </div>
-                    <h3>No employees found</h3>
+                    <h3>{hasPermission('VIEW_EMPLOYEE') ? 'No employees found' : 'Employee directory unavailable'}</h3>
                     <p>
-                      {employees.length === 0
+                      {!hasPermission('VIEW_EMPLOYEE')
+                        ? 'Employee records are not available to this account.'
+                        : employees.length === 0
                         ? 'The organizational directory is currently empty.'
                         : 'No employees match your current search and department filter.'}
                     </p>
@@ -952,7 +1011,7 @@ export default function HomePage() {
                       </button>
                     )}
                     {employees.length === 0 && (
-                      <PermissionGate permission="CREATE_EMPLOYEE">
+                      <PermissionGate permission="CREATE_EMPLOYEE" showWhenUnauthorized onDenied={setAuthorizationError}>
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
@@ -974,9 +1033,7 @@ export default function HomePage() {
                           <th>Role</th>
                           <th>Contact</th>
                           <th>Status</th>
-                          {(hasPermission('EDIT_EMPLOYEE') || hasPermission('DELETE_EMPLOYEE')) && (
-                            <th className="th-actions">Actions</th>
-                          )}
+                          <th className="th-actions">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1015,11 +1072,10 @@ export default function HomePage() {
                                 Active
                               </span>
                             </td>
-                            {(hasPermission('EDIT_EMPLOYEE') || hasPermission('DELETE_EMPLOYEE')) && (
-                              <td className="td-actions">
-                                <div className="action-buttons-group">
+                            <td className="td-actions">
+                              <div className="action-buttons-group">
                                   {/* EDIT_EMPLOYEE -> Edit Button */}
-                                  <PermissionGate permission="EDIT_EMPLOYEE">
+                                  <PermissionGate permission="EDIT_EMPLOYEE" showWhenUnauthorized onDenied={setAuthorizationError}>
                                     <button
                                       id={`btn-edit-employee-${emp.id}`}
                                       className="action-btn edit"
@@ -1035,7 +1091,7 @@ export default function HomePage() {
                                   </PermissionGate>
 
                                   {/* DELETE_EMPLOYEE -> Delete Button */}
-                                  <PermissionGate permission="DELETE_EMPLOYEE">
+                                  <PermissionGate permission="DELETE_EMPLOYEE" showWhenUnauthorized onDenied={setAuthorizationError}>
                                     <button
                                       id={`btn-delete-employee-${emp.id}`}
                                       className="action-btn delete"
@@ -1049,9 +1105,8 @@ export default function HomePage() {
                                       <span>Delete</span>
                                     </button>
                                   </PermissionGate>
-                                </div>
-                              </td>
-                            )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1063,7 +1118,7 @@ export default function HomePage() {
           )}
 
           {/* PERMISSION MANAGEMENT TAB */}
-          {activeTab === 'permissions' && hasPermission('ASSIGN_PERMISSION') && (
+          {activeTab === 'permissions' && (
             <div className="tab-container">
               {/* Header */}
               <div className="page-header">
@@ -1084,14 +1139,42 @@ export default function HomePage() {
               )}
 
               {pmError && (
-                <div className="alert alert-error" role="alert">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  <span>{pmError}</span>
-                </div>
+                <>
+                  <div className="alert alert-error" role="alert">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>{pmError}</span>
+                  </div>
+                  {!hasPermission('ASSIGN_PERMISSION') && (
+                    <div className="column-card">
+                      <div className="empty-state">
+                        <h3>Permission assignment is unavailable</h3>
+                        <p>User and permission details remain protected for this account.</p>
+                      </div>
+                      <div className="column-card-footer">
+                        <button
+                          id="btn-pm-clear"
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={handlePmClear}
+                        >
+                          Clear All
+                        </button>
+                        <button
+                          id="btn-pm-save"
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={handlePmSave}
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {!pmLoading && !pmError && (
@@ -1285,15 +1368,7 @@ export default function HomePage() {
                               id="btn-pm-clear"
                               type="button"
                               className="btn btn-secondary"
-                              onClick={() => {
-                                const cleared = {};
-                                pmFunctions.forEach((f) => {
-                                  cleared[f.code] = false;
-                                });
-                                setPmChecked(cleared);
-                                setPmSaveSuccess('');
-                                setPmSaveError('');
-                              }}
+                              onClick={handlePmClear}
                               disabled={pmSaving}
                             >
                               Clear All
