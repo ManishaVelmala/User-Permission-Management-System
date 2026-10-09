@@ -1,9 +1,8 @@
 from django.test import TestCase
 from django.db import IntegrityError
-from django.contrib.auth import get_user_model
+from accounts.models import User
 from .models import Function
 
-User = get_user_model()
 
 
 class FunctionModelTests(TestCase):
@@ -156,12 +155,12 @@ class DevTestUsersVerificationTests(TestCase):
         self.assertEqual(User.objects.filter(email='user3@example.com').count(), 1)
 
 
-from rest_framework.test import APIClient
+from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
-class PermissionAssignmentAPITests(TestCase):
+class PermissionAssignmentAPITests(APITestCase):
     def setUp(self):
         self.client = APIClient()
         seed_dev_users()

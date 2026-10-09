@@ -1,5 +1,17 @@
 {
+  "include": [
+    "backend"
+  ],
+  "exclude": [
+    "backend/venv",
+    "frontend"
+  ],
   "extraPaths": [
     "backend"
-  ]
+  ],
+  "venvPath": "backend",
+  "venv": "venv",
+  "reportIncompatibleVariableOverride": "none",
+  "reportMissingTypeStubs": "none",
+  "reportAttributeAccessIssue": "none"
 }
